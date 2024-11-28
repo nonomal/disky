@@ -11,17 +11,18 @@ android {
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "de.felixnuesse.disky.debug"
+        applicationId = "de.felixnuesse.disky"
         minSdk = 30
         targetSdk = 34
-        versionCode = 5
-        versionName = "1.0.4"
+        versionCode = 7
+        versionName = "1.2.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     buildFeatures {
         viewBinding = true
+        buildConfig = true
     }
 
     buildTypes {
@@ -37,7 +38,7 @@ android {
     applicationVariants.all{
         outputs.all {
             if(name.contains("release"))
-                (this as BaseVariantOutputImpl).outputFileName = "../../apk/disky-release-v$versionName.apk"
+                (this as BaseVariantOutputImpl).outputFileName = "disky-release-v$versionName.apk"
         }
     }
     compileOptions {
@@ -46,6 +47,10 @@ android {
     }
     kotlinOptions {
         jvmTarget = "1.8"
+    }
+
+    lint {
+        disable += "MissingTranslation"
     }
 }
 
@@ -62,4 +67,5 @@ dependencies {
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     implementation(libs.kotlinx.serialization.json)
+    implementation(libs.lottie)
 }

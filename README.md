@@ -3,13 +3,13 @@
 
 ---
 # disky
-### Find your biggest diskspace thiefes!
+### Find your biggest diskspace thieves!
 
 ---
 
 [![license: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://github.com/newhinton/disky/blob/master/LICENSE) [![Latest Downloads](https://img.shields.io/github/downloads/newhinton/disky/latest/total
 )](https://github.com/newhinton/disky/releases) [![GitHub release](https://img.shields.io/github/v/release/newhinton/disky?include_prereleases)](https://github.com/newhinton/disky/releases/latest)
-[![supportive flags](https://img.shields.io/badge/support-🇺🇦_🏳️‍⚧_🏳️‍🌈-4aad4e)](https://felixnuesse.de/disky) [![Android Lint](https://github.com/newhinton/timed-silence/actions/workflows/lint.yml/badge.svg)](https://github.com/newhinton/disky/actions/workflows/lint.yml)
+[![supportive flags](https://img.shields.io/badge/support-🇺🇦_🏳️‍⚧_🏳️‍🌈-4aad4e)](https://felixnuesse.de/disky) [![Android Lint](https://github.com/newhinton/disky/actions/workflows/lint.yml/badge.svg?branch=master)](https://github.com/newhinton/disky/actions/workflows/lint.yml)
 
 [<img src="https://fdroid.gitlab.io/artwork/badge/get-it-on.png"
 alt="Get it on F-Droid"
@@ -95,6 +95,15 @@ About this app
 -----------------
 ### License
 This app is released under the terms of the [GPLv3 license](https://gitea.felixnuesse.de/felix/disky/blob/master/LICENSE). 
+There are older releases that accidentially contained the wrong license file, namely MIT.
+This entire Repository is and was GPLv3, as stated by this Readme in this section, and the pill below the title on top of this document.
+It was also stated in the app itself.
+
+
 
 ### Libraries
 - [AppIntro](https://github.com/AppIntro/AppIntro) - This library is responsible for the easy-to-use introduction to the app!
+- [Lottie](https://github.com/airbnb/lottie-android) - This library makes the fancy animation possible!
+- [Undraw](https://undraw.co/) - Not really a library, but without Undraw's Images, this app wouldn't be the same!
+
+Thanks to all of them! 

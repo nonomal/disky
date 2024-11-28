@@ -5,10 +5,12 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.graphics.Color
 import android.os.Bundle
 import android.os.Environment.MEDIA_UNMOUNTED
 import android.os.storage.StorageManager
 import android.util.Log
+import android.util.TypedValue
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
@@ -27,13 +29,18 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import androidx.recyclerview.widget.LinearLayoutManager
+import com.airbnb.lottie.LottieProperty
+import com.airbnb.lottie.model.KeyPath
 import com.google.android.material.textfield.MaterialAutoCompleteTextView
 import de.felixnuesse.disky.IntroActivity.Companion.INTRO_PREFERENCES
 import de.felixnuesse.disky.IntroActivity.Companion.intro_v1_0_0_completed
 import de.felixnuesse.disky.background.ScanService
 import de.felixnuesse.disky.background.ScanService.Companion.SCAN_ABORTED
 import de.felixnuesse.disky.background.ScanService.Companion.SCAN_COMPLETE
+import de.felixnuesse.disky.background.ScanService.Companion.SCAN_REFRESH_REQUESTED
+import de.felixnuesse.disky.background.ScanService.Companion.SCAN_PROGRESSED
 import de.felixnuesse.disky.background.ScanService.Companion.SCAN_STORAGE
+import de.felixnuesse.disky.background.ScanService.Companion.SCAN_SUBDIR
 import de.felixnuesse.disky.databinding.ActivityMainBinding
 import de.felixnuesse.disky.extensions.getAppname
 import de.felixnuesse.disky.extensions.readableFileSize
@@ -46,6 +53,7 @@ import de.felixnuesse.disky.ui.BottomSheet
 import de.felixnuesse.disky.ui.ChangeFolderCallback
 import de.felixnuesse.disky.ui.RecyclerViewAdapter
 import de.felixnuesse.disky.utils.PermissionManager
+import de.felixnuesse.disky.worker.WorkerManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -62,6 +70,12 @@ class MainActivity : AppCompatActivity(), ChangeFolderCallback, ScanCompleteCall
     private var selectedStorage = ""
 
     private var lastScanStarted = 0L
+
+    companion object {
+        const val APP_PREFERENCES = "APP_PREFERENCES"
+        const val APP_PREFERENCE_SORTORDER = "APP_PREFERENCE_SORTORDER"
+    }
+
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -82,6 +96,7 @@ class MainActivity : AppCompatActivity(), ChangeFolderCallback, ScanCompleteCall
             //startActivity(Intent(this, IntroActivity::class.java))
             //finish()
         }
+
 
         storageManager = getSystemService(Context.STORAGE_SERVICE) as StorageManager
 
@@ -116,26 +131,28 @@ class MainActivity : AppCompatActivity(), ChangeFolderCallback, ScanCompleteCall
             binding.storageSelector.visibility = View.GONE
         }
 
+        registerReciever()
         if(isIntroComplete) {
-            triggerDataUpdate()
+            //triggerDataUpdate()
+            WorkerManager().scheduleDaily(this)
         }
-
     }
 
-    fun triggerDataUpdate() {
-        Log.e(tag(), "trigger update!")
-        runOnUiThread {
-            binding.folders.visibility = View.INVISIBLE
-            binding.loading.visibility = View.VISIBLE
-            fadeTextview(getString(R.string.calculating), binding.freeText)
-            fadeTextview(getString(R.string.calculating), binding.usedText)
-        }
-
-        lastScanStarted = System.currentTimeMillis()
+    fun registerReciever() {
         val reciever = object: BroadcastReceiver() {
             override fun onReceive(context: Context?, intent: Intent) {
                 if(intent.action == SCAN_ABORTED) {
+                    binding.progressLabel.text = "Scan was aborted"
                     return
+                }
+                if(intent.action == SCAN_REFRESH_REQUESTED) {
+                    requestDataRefresh()
+                }
+                if(intent.action == SCAN_PROGRESSED) {
+                    var progress = intent.getIntExtra(SCAN_PROGRESSED, 0)
+                    binding.progressIndicator.isIndeterminate = false
+                    binding.progressIndicator.progress = progress
+                    binding.progressLabel.text = "$progress%"
                 }
                 if(intent.action == SCAN_COMPLETE) {
                     CoroutineScope(Dispatchers.IO).launch{
@@ -145,9 +162,42 @@ class MainActivity : AppCompatActivity(), ChangeFolderCallback, ScanCompleteCall
                 }
             }
         }
-        LocalBroadcastManager.getInstance(this).registerReceiver(reciever, IntentFilter(SCAN_COMPLETE).also { SCAN_ABORTED })
+        val filter = IntentFilter(SCAN_COMPLETE)
+        filter.addAction(SCAN_ABORTED)
+        filter.addAction(SCAN_REFRESH_REQUESTED)
+        filter.addAction(SCAN_PROGRESSED)
+        LocalBroadcastManager.getInstance(this).registerReceiver(reciever, filter)
+    }
+
+    fun triggerDataUpdate() {
+        Log.e(tag(), "trigger update!")
+        runOnUiThread {
+            binding.folders.visibility = View.INVISIBLE
+            binding.loading.visibility = View.VISIBLE
+            fadeTextview(getString(R.string.calculating), binding.freeText)
+            fadeTextview(getString(R.string.calculating), binding.usedText)
+
+            val primaryColor = TypedValue()
+            theme.resolveAttribute(com.google.android.material.R.attr.colorPrimaryDark, primaryColor, true)
+            val targetColor = Color.valueOf(Color.parseColor("#FF00FF"))
+
+            binding.lottie.addValueCallback(
+                KeyPath("**"),
+                LottieProperty.COLOR
+            ) {
+                val svg = Color.valueOf(it.startValue)
+                if(svg == targetColor) {
+                    primaryColor.data
+                } else {
+                    it.startValue
+                }
+            }
+        }
+
+        lastScanStarted = System.currentTimeMillis()
         val service = Intent(this, ScanService::class.java)
         service.putExtra(SCAN_STORAGE, selectedStorage)
+        service.putExtra(SCAN_SUBDIR, currentElement?.getParentPath())
         startForegroundService(service)
     }
 
@@ -229,8 +279,15 @@ class MainActivity : AppCompatActivity(), ChangeFolderCallback, ScanCompleteCall
             val percentage = (it.getCalculatedSize().toFloat()/max.toFloat())
             it.percent = (percentage*100).toInt()
         }
+
+        val sharedPref = applicationContext.getSharedPreferences(APP_PREFERENCES, Context.MODE_PRIVATE)
+        val sortbySize = sharedPref.getInt(APP_PREFERENCE_SORTORDER, 0) == 0 // 0 is size. If we get more, we need to decide here how to sort.
         //second, sort children
-        val l = currentElement!!.getChildren().sortedWith(compareBy{ list -> list.getCalculatedSize()})
+        val l = if (sortbySize) {
+            currentElement!!.getChildren().sortedWith(compareBy{ list -> list.getCalculatedSize()})
+        } else {
+            currentElement!!.getChildren().sortedWith(compareBy{ list -> list.name.lowercase()}).reversed()
+        }
         currentElement!!.clearChildren()
         currentElement!!.getChildren().addAll(l.reversed())
 
@@ -251,21 +308,28 @@ class MainActivity : AppCompatActivity(), ChangeFolderCallback, ScanCompleteCall
 
     override fun scanComplete(result: StorageResult) {
         runOnUiThread{
-            rootElement = result.rootElement
-            if(rootElement != null) {
+            var internalRootElement = result.rootElement
+            if(internalRootElement != null) {
                 binding.folders.visibility = View.VISIBLE
-                binding.loading.visibility = View.INVISIBLE
+                binding.loading.visibility = View.GONE
 
 
-                binding.removableStorageWarning.visibility = if(result.scannedVolume?.isRemovable?:false) {View.VISIBLE
+                binding.removableStorageWarning.visibility = if(result.scannedVolume?.isRemovable == true) {
+                    View.VISIBLE
                 } else {
                     View.GONE
                 }
 
                 (binding.dropdown as MaterialAutoCompleteTextView)
                     .setText(result.scannedVolume?.getDescription(this), false)
-                showFolder(rootElement!!)
-                updateStaticElements(rootElement!!, result.total, result.free)
+                if(!result.isPartialScan) {
+                    rootElement = internalRootElement
+                    showFolder(rootElement!!)
+                    updateStaticElements(rootElement!!, result.total, result.free)
+                } else {
+                    rootElement?.mergePartialTree(internalRootElement)
+                    currentElement?.let { changeFolder(it) }
+                }
             }
         }
     }
@@ -277,19 +341,35 @@ class MainActivity : AppCompatActivity(), ChangeFolderCallback, ScanCompleteCall
     }
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         val id = item.itemId
+
+        if (id == android.R.id.home) {
+            currentElement = rootElement
+            currentElement?.let { changeFolder(it) }
+            return true
+        }
         if (id == R.id.action_settings) {
             val bl = BottomSheet()
             bl.show(supportFragmentManager, BottomSheet.TAG)
             return true
         }
         if (id == R.id.action_reload) {
-            Toast.makeText(this, R.string.reload, Toast.LENGTH_LONG).show()
-            triggerDataUpdate()
+            requestDataRefresh()
             return true
         }
         return super.onOptionsItemSelected(item)
     }
 
+    private fun requestDataRefresh() {
+        when(currentElement?.storageType) {
+            StorageType.APP -> {
+                Toast.makeText(this, R.string.reload_blocked_because_inapps, Toast.LENGTH_SHORT).show()
+            }
+            else -> {
+                Toast.makeText(this, R.string.reload, Toast.LENGTH_SHORT).show()
+                triggerDataUpdate()
+            }
+        }
+    }
     private fun fadeTextview(text: String, view: TextView) {
         if(view.text == text) {
             return

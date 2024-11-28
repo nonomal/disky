@@ -1,14 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">disky</string>
     <string name="apppackage_size_data">Nutzerdaten</string>
     <string name="apppackage_size_externalcache">Externer Cache</string>
     <string name="apppackage_size_cache">Cache</string>
     <string name="apps">Apps</string>
-    <string name="system">Android OS</string>
     <string name="foreground_service_notification_channel_name">Disky Scan Service</string>
-    <string name="foreground_service_notification_title">Disky Scan Service</string>
+    <string name="foreground_service_notification_title">Scannen…</string>
     <string name="foreground_service_notification_description">Dieser Kanal zeigt den Scanfortschritt an</string>
+    <string name="foreground_service_notification_starting_message">Wir bereiten den Scan vor…</string>
+    <string name="foreground_service_notification_short_message">Fortschritt: %1$d%%</string>
+    <string name="foreground_service_notification_long_message">Fortschritt: %1$d%% \n %2$s</string>
     <string name="contextmenu_folder_open">Ordner öffnen</string>
     <string name="intro_slide_welcome_title">Willkommen!</string>
     <string name="intro_slide_welcome_description">Wir helfen dir große Platzfresser zu finden. Aber erst, lass uns die App einrichten!</string>
@@ -24,7 +25,8 @@
     <string name="contextmenu_file_openfolder">Öffne in Ordner</string>
     <string name="mainmenu_reload">Neu Scannen</string>
     <string name="mainmenu_settings">Einstellungen</string>
-    <string name="reload">Re-Scanne Dateien...</string>
+    <string name="reload">Re-Scanne Dateien…</string>
+    <string name="reload_blocked_because_inapps">Neu laden ist nicht möglich in einer App.</string>
     <string name="donate_message">Möchtest du den Entwickler unterstützen? Dein Einsatz wird wertgeschätzt!</string>
     <string name="donate_button">Spenden!</string>
     <string name="uicontext_folder_rootdir">Du bist im Hauptverzeichnis.</string>
@@ -35,4 +37,31 @@
     <string name="used">Benutzt:</string>
     <string name="calculating">Berechne…</string>
     <string name="free">Frei:</string>
+    <string name="warning_removable_storage">Warnung! Entfernbarer Speicher ist unzuverlässig!</string>
+    <string name="contextmenu_delete">Lösche</string>
+    <string name="yes_delete">Ja, permanent löschen!</string>
+    <string name="no_keep">Nein, behalten.</string>
+    <string name="delete_confirmation_text">Bist du dir sicher das du \"%1$s\" löschen willst? Das ist unumkehrbar!</string>
+    <string name="delete_file_title">Datei löschen</string>
+    <string name="delete_folder_title">Ordner löschen</string>
+    <string name="action_cancel">Abbrechen</string>
+    <string name="activity_about_madeby">Von:</string>
+    <string name="help">Hilfe</string>
+    <string name="faq">FAQ</string>
+    <string name="about">Über</string>
+    <string name="sortorder">Sortierung</string>
+    <string name="about_this_app">Über diese App</string>
+    <string name="faq_description">Wenn du Fragen hast, werden sie hier vielleicht beantwortet.</string>
+    <string name="sortorder_aplhabet">Alphabet</string>
+    <string name="sortorder_size">Größe</string>
+    <string name="ok">ok</string>
+    <string name="help_android_os">Android OS</string>
+    <string name="faq_label_accuracy">Ist diese App genau?</string>
+    <string name="faq_label_androidos">Was ist \"Android OS\"?</string>
+
+    <string name="help_android_os_description">Dies zeigt die Differenz zwischen dem gesamten Speicher, wieviel von deinen Dateien und dem freien Speicher an.\n\nDies enthält nicht nur das Android System, sondern auch temoräre Dateien und Apps und Dateien von anderen Profilen. Das bedeutet das dieser Wert ungenau ist.</string>
+    <string name="faq_answer_accuracy">Nein. Wir können zwar Apps und Dateien korrekt berechnen, aber nicht die des Android Systems. Das bedeutet das diese Werte sich vermutlich jedesmal ändern wenn du einen neuen Scan startest. Das ist eine Begrenzung von Android.</string>
+    <string name="faq_answer_androidos">Das ist all der Speicher den wir nicht direkt scannen können. Das beinhaltet andere Profile, deren Dateien und Apps, sowie temporäre Systemdateien. Der berechnete Wert ist deshalb nur eine Schätzung.</string>
+
+
 </resources>

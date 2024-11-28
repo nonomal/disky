@@ -4,9 +4,11 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.provider.DocumentsContract
 import android.view.LayoutInflater
 import android.view.MenuItem
 import android.view.ViewGroup
+import android.webkit.MimeTypeMap
 import androidx.appcompat.content.res.AppCompatResources
 import androidx.appcompat.widget.PopupMenu
 import androidx.recyclerview.widget.RecyclerView
@@ -14,12 +16,18 @@ import de.felixnuesse.disky.R
 import de.felixnuesse.disky.databinding.ItemFolderEntryBinding
 import de.felixnuesse.disky.databinding.ItemLeafEntryBinding
 import de.felixnuesse.disky.extensions.getAppIcon
+import de.felixnuesse.disky.extensions.getAppIconDisabled
 import de.felixnuesse.disky.extensions.getAppname
+import de.felixnuesse.disky.extensions.isAppEnabled
 import de.felixnuesse.disky.extensions.readableFileSize
+import de.felixnuesse.disky.extensions.startApp
+import de.felixnuesse.disky.extensions.startAppSettings
 import de.felixnuesse.disky.model.StorageBranch
 import de.felixnuesse.disky.model.StorageLeaf
 import de.felixnuesse.disky.model.StoragePrototype
 import de.felixnuesse.disky.model.StorageType
+import de.felixnuesse.disky.ui.dialogs.DeleteDialog
+import de.felixnuesse.disky.ui.dialogs.HelpDialog
 import java.io.File
 
 
@@ -40,12 +48,15 @@ class RecyclerViewAdapter(private var mContext: Context, private val folders: Li
         }
     }
 
-    @SuppressLint("UseCompatLoadingForDrawables")
+    @SuppressLint("UseCompatLoadingForDrawables", "SetTextI18n")
     override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
         if(holder is FolderView) {
             with(holder) {
                 with(folders[position]){
+                    val branch = folders[position] as StorageBranch
                     binding.title.text = name
+                    // the recyclerview does not reenable the title on scroll.
+                    binding.title.isEnabled = true
                     binding.size.text = readableFileSize(getCalculatedSize())
                     binding.progressBar.progress = percent
 
@@ -57,10 +68,17 @@ class RecyclerViewAdapter(private var mContext: Context, private val folders: Li
                         binding.title.text = getAppname(name, mContext)
                         binding.imageView.imageTintList = null
                         binding.imageView.setImageDrawable(getAppIcon(name, mContext))
+                        setMenu(R.menu.context_folder_app_menu, branch)
+                        if(!isAppEnabled(name, mContext)) {
+                            binding.title.text = getAppname(name, mContext) + " " + mContext.getString(R.string.app_disabled_suffix)
+                            binding.title.isEnabled = false
+                            binding.imageView.setImageDrawable(getAppIconDisabled(name, mContext))
+                        }
                     }
 
                     if(storageType == StorageType.FOLDER) {
-                        holder.leafFolder = folders[position] as StorageBranch
+                        holder.leafFolder = branch
+                        enableDeletion()
                     }
                     setChangeFolderCallbackTarget(this)
                 }
@@ -71,8 +89,12 @@ class RecyclerViewAdapter(private var mContext: Context, private val folders: Li
                     binding.title.text = name
                     binding.size.text = readableFileSize(getCalculatedSize())
 
+                    val leaf = this
                     when(StorageType.fromInt(holder.itemViewType)) {
-                        StorageType.OS,
+                        StorageType.OS -> {
+                            setMenu(R.menu.context_os_menu, leaf)
+                            setImage(R.drawable.icon_android)
+                        }
                         StorageType.APP_APK,
                         StorageType.APP -> {
                             setImage(R.drawable.icon_android)
@@ -87,7 +109,8 @@ class RecyclerViewAdapter(private var mContext: Context, private val folders: Li
                             setImage(R.drawable.icon_account)
                         }
                         StorageType.FILE -> {
-                            leafItem = folders[position] as StorageLeaf
+                            leafItem = leaf
+                            enableDeletion()
                         }
                         else -> {}
                     }
@@ -95,7 +118,6 @@ class RecyclerViewAdapter(private var mContext: Context, private val folders: Li
             }
         }
     }
-
 
     override fun getItemViewType(position: Int): Int {
         return folders[position].storageType.ordinal
@@ -109,24 +131,52 @@ class RecyclerViewAdapter(private var mContext: Context, private val folders: Li
     inner class FolderView(var binding: ItemFolderEntryBinding): RecyclerView.ViewHolder(binding.root), PopupMenu.OnMenuItemClickListener {
 
         var leafFolder: StorageBranch? = null
+        private var popupMenuEnableDeletion = false
 
         init {
+            setMenu(R.menu.context_folder_menu, null)
+        }
+
+        fun setMenu(menu: Int, branch: StorageBranch?) {
+            branch.let{leafFolder = it}
             binding.root.setOnLongClickListener {
+                if(leafFolder == null) {
+                    return@setOnLongClickListener true
+                }
                 val context = binding.root.context
                 val popup = PopupMenu(context, it)
                 popup.setOnMenuItemClickListener(this)
-                popup.menuInflater.inflate(R.menu.context_folder_menu, popup.menu)
+                popup.menuInflater.inflate(menu, popup.menu)
+                popup.menu.findItem(R.id.action_folder_delete)?.setVisible(popupMenuEnableDeletion)
                 popup.setForceShowIcon(true)
                 popup.show()
                 true
             }
         }
 
+        fun enableDeletion() {
+            popupMenuEnableDeletion = true
+        }
+
         override fun onMenuItemClick(item: MenuItem): Boolean {
             return when (item.itemId) {
                 R.id.action_folder_open -> {
                     val uri = Uri.parse(leafFolder!!.getParentPath())
-                    binding.root.context.startActivity(Intent(Intent.ACTION_VIEW).setDataAndType(uri, "*/*"))
+                    val explorerIntent = Intent(Intent.ACTION_VIEW)
+                    explorerIntent.setDataAndType(uri, DocumentsContract.Document.MIME_TYPE_DIR)
+                    binding.root.context.startActivity(explorerIntent)
+                    true
+                }
+                R.id.action_folder_delete -> {
+                    DeleteDialog(mContext, File(leafFolder!!.getParentPath())).askDelete()
+                    true
+                }
+                R.id.action_folder_app_open -> {
+                    leafFolder?.let { startApp(it.name, mContext) }
+                    true
+                }
+                R.id.action_folder_app_settings -> {
+                    leafFolder?.let { startAppSettings(it.name, mContext) }
                     true
                 }
                 else -> false
@@ -145,28 +195,36 @@ class RecyclerViewAdapter(private var mContext: Context, private val folders: Li
         }
     }
     inner class LeafView(var binding: ItemLeafEntryBinding): RecyclerView.ViewHolder(binding.root), PopupMenu.OnMenuItemClickListener {
-        fun setImage(resource: Int) {
-            binding.leafImage.setImageDrawable(AppCompatResources.getDrawable(mContext, resource))
-        }
 
         var leafItem: StorageLeaf? = null
-
-        fun setChangeFolderCallbackTarget(folder: StoragePrototype) {
-            binding.linearLayout.setOnClickListener {
-                callback?.changeFolder(folder)
-            }
-        }
+        private var popupMenuEnableDeletion = false
 
         init {
+            setMenu(R.menu.context_file_menu, null)
+        }
+
+        fun setMenu(menu: Int, leaf: StorageLeaf?) {
+            leaf.let{leafItem = it}
             binding.root.setOnLongClickListener {
+                if(leafItem == null) {
+                    return@setOnLongClickListener true
+                }
                 val context = binding.root.context
                 val popup = PopupMenu(context, it)
                 popup.setOnMenuItemClickListener(this)
-                popup.menuInflater.inflate(R.menu.context_file_menu, popup.menu)
+                popup.menuInflater.inflate(menu, popup.menu)
+                popup.menu.findItem(R.id.action_file_delete)?.setVisible(popupMenuEnableDeletion)
                 popup.setForceShowIcon(true)
                 popup.show()
                 true
             }
+        }
+
+        fun enableDeletion() {
+            popupMenuEnableDeletion = true
+        }
+        fun setImage(resource: Int) {
+            binding.leafImage.setImageDrawable(AppCompatResources.getDrawable(mContext, resource))
         }
 
         override fun onMenuItemClick(item: MenuItem): Boolean {
@@ -177,17 +235,29 @@ class RecyclerViewAdapter(private var mContext: Context, private val folders: Li
             return when (item.itemId) {
                 R.id.action_file_open -> {
                     val uri = Uri.parse(leafItem!!.getParentPath())
-                    binding.root.context.startActivity(Intent(Intent.ACTION_VIEW).setDataAndType(uri, "*/*"))
+                    val type = MimeTypeMap.getSingleton().getMimeTypeFromExtension(leafItem!!.name.split('.')[1])?: "*/*"
+                    binding.root.context.startActivity(Intent(Intent.ACTION_VIEW).setDataAndType(uri, type))
                     true
                 }
                 R.id.action_file_openfolder -> {
                     val uri = Uri.parse(File(leafItem!!.getParentPath()).parent)
-                    binding.root.context.startActivity(Intent(Intent.ACTION_VIEW).setDataAndType(uri, "*/*"))
+                    val explorerIntent = Intent(Intent.ACTION_VIEW)
+                    explorerIntent.setDataAndType(uri, DocumentsContract.Document.MIME_TYPE_DIR)
+                    binding.root.context.startActivity(explorerIntent)
                     true
                 }
-                else -> false
+                R.id.action_file_delete -> {
+                    DeleteDialog(mContext, File(leafItem!!.getParentPath())).askDelete()
+                    true
+                }
+                R.id.action_os_help -> {
+                    HelpDialog(mContext).help(R.string.help_android_os, R.string.help_android_os_description)
+                    true
+                }
+                else -> {
+                    false
+                }
             }
         }
     }
-
 }
